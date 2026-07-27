@@ -33,7 +33,7 @@ env:
 jobs:
   detect:
     name: Detect project
-    runs-on: [self-hosted, lecomputing_li_tian]
+    runs-on: [self-hosted, li_tian_desktop]
     outputs:
       languages: ${{ steps.detect.outputs.languages }}
       scan_root: ${{ steps.detect.outputs.scan_root }}
@@ -54,7 +54,7 @@ jobs:
   arm-mcp-analysis:
     name: ARM MCP analysis
     needs: detect
-    runs-on: [self-hosted, lecomputing_li_tian]
+    runs-on: [self-hosted, li_tian_desktop]
     steps:
       - uses: actions/checkout@v4
 
@@ -95,7 +95,7 @@ jobs:
     name: Post PR feedback
     needs: [arm-mcp-analysis]
     if: always() && github.event_name == 'pull_request'
-    runs-on: [self-hosted, lecomputing_li_tian]
+    runs-on: [self-hosted, li_tian_desktop]
     steps:
       - uses: actions/checkout@v4
 
@@ -126,7 +126,7 @@ jobs:
     if: >-
       github.event_name == 'pull_request' &&
       contains(github.event.pull_request.labels.*.name, 'arm-mcp-ai')
-    runs-on: [self-hosted, lecomputing_li_tian]
+    runs-on: [self-hosted, li_tian_desktop]
     steps:
       - uses: actions/checkout@v4
 
@@ -188,7 +188,7 @@ jobs:
       always() &&
       github.event_name == 'pull_request' &&
       needs.arm-mcp-ai-analysis.result != 'skipped'
-    runs-on: [self-hosted, lecomputing_li_tian]
+    runs-on: [self-hosted, li_tian_desktop]
     steps:
       - uses: actions/checkout@v4
 
