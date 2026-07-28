@@ -69,6 +69,13 @@ async def run_ai_analysis() -> dict[str, Any]:
     config = load_ai_config(Path(WORKSPACE_ROOT))
     llm_config = config["llm"]
     provider_name = (llm_config.get("provider") or "openai").lower()
+    print(
+        "LLM config: "
+        f"provider={provider_name} "
+        f"model={llm_config.get('model')} "
+        f"base_url={llm_config.get('base_url') or '(default)'}",
+        flush=True,
+    )
     provider = create_provider(llm_config)
     max_iterations = int(llm_config.get("max_iterations", 20))
 

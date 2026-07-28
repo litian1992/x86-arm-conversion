@@ -180,8 +180,10 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ARM_MCP_AI_API_KEY: ${{ secrets.ARM_MCP_AI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          ARM_MCP_AI_PROVIDER: ${{ vars.ARM_MCP_AI_PROVIDER || 'openai' }}
-          ARM_MCP_AI_MODEL: ${{ vars.ARM_MCP_AI_MODEL || 'gpt-4o' }}
+          # Optional overrides only — omit defaults so .arm-mcp-ai.yaml wins.
+          ARM_MCP_AI_PROVIDER: ${{ vars.ARM_MCP_AI_PROVIDER }}
+          ARM_MCP_AI_MODEL: ${{ vars.ARM_MCP_AI_MODEL }}
+          ARM_MCP_AI_BASE_URL: ${{ vars.ARM_MCP_AI_BASE_URL }}
         run: python ci/ai_analysis.py
         timeout-minutes: 45
 

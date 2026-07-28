@@ -61,7 +61,8 @@ def load_ai_config(root: Path | None = None) -> dict[str, Any]:
         "temperature": os.environ.get("ARM_MCP_AI_TEMPERATURE"),
     }
     for key, value in env_overrides.items():
-        if value is not None:
+        # Empty strings from unset GitHub Actions vars must not clobber YAML.
+        if value is not None and value != "":
             if key in ("max_iterations",):
                 llm[key] = int(value)
             elif key == "temperature":
