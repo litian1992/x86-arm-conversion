@@ -18,6 +18,7 @@ from arm_mcp_client import arm_mcp_session, get_tool_names
 from llm.factory import create_provider, load_ai_config
 
 OUTPUT_DIR = Path(os.environ.get("CI_OUTPUT_DIR", "ci-output"))
+WORKSPACE_ROOT = os.environ.get("WORKSPACE_ROOT") or os.environ.get("GITHUB_WORKSPACE") or os.getcwd()
 WORKSPACE = os.environ.get("WORKSPACE", os.getcwd())
 LANGUAGES = json.loads(os.environ.get("LANGUAGES", "[]"))
 
@@ -65,7 +66,7 @@ def _render_markdown(report: dict[str, Any]) -> str:
 
 
 async def run_ai_analysis() -> dict[str, Any]:
-    config = load_ai_config(Path(WORKSPACE))
+    config = load_ai_config(Path(WORKSPACE_ROOT))
     llm_config = config["llm"]
     provider_name = (llm_config.get("provider") or "openai").lower()
     provider = create_provider(llm_config)

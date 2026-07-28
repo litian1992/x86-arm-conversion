@@ -65,8 +65,14 @@ jobs:
       - name: Install CI dependencies
         run: pip install -r ci/requirements.txt
 
-      - name: Pull ARM MCP server image
-        run: docker pull "$ARM_MCP_IMAGE"
+      - name: Ensure ARM MCP server image
+        run: |
+          if docker image inspect "$ARM_MCP_IMAGE" >/dev/null 2>&1; then
+            echo "Using local image: $ARM_MCP_IMAGE"
+          else
+            echo "Local image not found; pulling $ARM_MCP_IMAGE"
+            docker pull "$ARM_MCP_IMAGE"
+          fi
 
       - name: Prepare Java Performix on APX host
         env:
@@ -148,8 +154,14 @@ jobs:
             exit 1
           fi
 
-      - name: Pull ARM MCP server image
-        run: docker pull "$ARM_MCP_IMAGE"
+      - name: Ensure ARM MCP server image
+        run: |
+          if docker image inspect "$ARM_MCP_IMAGE" >/dev/null 2>&1; then
+            echo "Using local image: $ARM_MCP_IMAGE"
+          else
+            echo "Local image not found; pulling $ARM_MCP_IMAGE"
+            docker pull "$ARM_MCP_IMAGE"
+          fi
 
       - name: Prepare Java Performix on APX host
         env:

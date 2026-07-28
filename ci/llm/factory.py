@@ -38,8 +38,17 @@ def _load_yaml_config(root: Path) -> dict[str, Any]:
 
 
 def load_ai_config(root: Path | None = None) -> dict[str, Any]:
-    """Merge AI config from YAML file and environment variables."""
-    root = Path(root or os.environ.get("WORKSPACE", os.getcwd()))
+    """Merge AI config from YAML file and environment variables.
+
+    Config and prompt paths are resolved against the repository root
+    (WORKSPACE_ROOT), not the scan workspace (WORKSPACE / code/).
+    """
+    root = Path(
+        root
+        or os.environ.get("WORKSPACE_ROOT")
+        or os.environ.get("GITHUB_WORKSPACE")
+        or os.getcwd()
+    )
     config = _load_yaml_config(root)
     llm = dict(config.get("llm") or {})
 
