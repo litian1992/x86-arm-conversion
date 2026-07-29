@@ -9,8 +9,17 @@ DEFAULT_AGENT_PROMPT = Path(".github/agents/arm-migration.agent.md")
 
 
 def load_agent_prompt(root: Path | None = None, prompt_path: Path | str | None = None) -> str:
-    """Read the agent prompt from a markdown file."""
-    root = Path(root or os.environ.get("WORKSPACE", os.getcwd()))
+    """Read the agent prompt from a markdown file.
+
+    Relative paths are resolved against the repository root (WORKSPACE_ROOT),
+    not the scan workspace (WORKSPACE / code/).
+    """
+    root = Path(
+        root
+        or os.environ.get("WORKSPACE_ROOT")
+        or os.environ.get("GITHUB_WORKSPACE")
+        or os.getcwd()
+    )
     env_path = os.environ.get("ARM_MCP_AI_PROMPT_PATH")
     resolved = prompt_path or env_path or DEFAULT_AGENT_PROMPT
     path = Path(resolved)

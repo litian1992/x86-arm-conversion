@@ -3,17 +3,20 @@
 
 llm:
   # Provider: openai | openai_compat | ollama | custom | anthropic | claude
-  provider: openai
-  model: gpt-4o
+  provider: openai_compat
+  model: glm-4.7-flash
   # Read API key from this environment variable (recommended for CI secrets)
   api_key_env: OPENAI_API_KEY
   # Override for Azure, Ollama, or any OpenAI-compatible endpoint:
-  # base_url: http://localhost:11434/v1
+  base_url: https://open.bigmodel.cn/api/paas/v4
   # Optional extra headers for custom APIs:
   # headers:
   #   X-Custom-Header: value
   max_iterations: 20
   temperature: 0.2
+  # Retries for free-tier rate limits (429):
+  max_retries: 5
+  retry_backoff: 5.0
 
 # Optional: override the agent prompt file (default: .github/agents/arm-migration.agent.md)
 # prompt: .github/agents/arm-migration.agent.md

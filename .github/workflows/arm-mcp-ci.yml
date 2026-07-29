@@ -33,7 +33,7 @@ env:
 jobs:
   detect:
     name: Detect project
-    runs-on: [self-hosted, lecomputing_li_tian]
+    runs-on: [self-hosted, li_tian_desktop]
     outputs:
       languages: ${{ steps.detect.outputs.languages }}
       scan_root: ${{ steps.detect.outputs.scan_root }}
@@ -54,7 +54,7 @@ jobs:
   arm-mcp-analysis:
     name: ARM MCP analysis
     needs: detect
-    runs-on: [self-hosted, lecomputing_li_tian]
+    runs-on: [self-hosted, li_tian_desktop]
     steps:
       - uses: actions/checkout@v4
 
@@ -65,8 +65,14 @@ jobs:
       - name: Install CI dependencies
         run: pip install -r ci/requirements.txt
 
-      - name: Pull ARM MCP server image
-        run: docker pull "$ARM_MCP_IMAGE"
+      - name: Ensure ARM MCP server image
+        run: |
+          if docker image inspect "$ARM_MCP_IMAGE" >/dev/null 2>&1; then
+            echo "Using local image: $ARM_MCP_IMAGE"
+          else
+            echo "Local image not found; pulling $ARM_MCP_IMAGE"
+            docker pull "$ARM_MCP_IMAGE"
+          fi
 
       - name: Prepare Java Performix on APX host
         env:
@@ -95,7 +101,7 @@ jobs:
     name: Post PR feedback
     needs: [arm-mcp-analysis]
     if: always() && github.event_name == 'pull_request'
-    runs-on: [self-hosted, lecomputing_li_tian]
+    runs-on: [self-hosted, li_tian_desktop]
     steps:
       - uses: actions/checkout@v4
 
@@ -126,7 +132,7 @@ jobs:
     if: >-
       github.event_name == 'pull_request' &&
       contains(github.event.pull_request.labels.*.name, 'arm-mcp-ai')
-    runs-on: [self-hosted, lecomputing_li_tian]
+    runs-on: [self-hosted, li_tian_desktop]
     steps:
       - uses: actions/checkout@v4
 
@@ -148,8 +154,14 @@ jobs:
             exit 1
           fi
 
-      - name: Pull ARM MCP server image
-        run: docker pull "$ARM_MCP_IMAGE"
+      - name: Ensure ARM MCP server image
+        run: |
+          if docker image inspect "$ARM_MCP_IMAGE" >/dev/null 2>&1; then
+            echo "Using local image: $ARM_MCP_IMAGE"
+          else
+            echo "Local image not found; pulling $ARM_MCP_IMAGE"
+            docker pull "$ARM_MCP_IMAGE"
+          fi
 
       - name: Prepare Java Performix on APX host
         env:
@@ -168,8 +180,10 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ARM_MCP_AI_API_KEY: ${{ secrets.ARM_MCP_AI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          ARM_MCP_AI_PROVIDER: ${{ vars.ARM_MCP_AI_PROVIDER || 'openai' }}
-          ARM_MCP_AI_MODEL: ${{ vars.ARM_MCP_AI_MODEL || 'gpt-4o' }}
+          # Optional overrides only — omit defaults so .arm-mcp-ai.yaml wins.
+          ARM_MCP_AI_PROVIDER: ${{ vars.ARM_MCP_AI_PROVIDER }}
+          ARM_MCP_AI_MODEL: ${{ vars.ARM_MCP_AI_MODEL }}
+          ARM_MCP_AI_BASE_URL: ${{ vars.ARM_MCP_AI_BASE_URL }}
         run: python ci/ai_analysis.py
         timeout-minutes: 45
 
@@ -188,7 +202,7 @@ jobs:
       always() &&
       github.event_name == 'pull_request' &&
       needs.arm-mcp-ai-analysis.result != 'skipped'
-    runs-on: [self-hosted, lecomputing_li_tian]
+    runs-on: [self-hosted, li_tian_desktop]
     steps:
       - uses: actions/checkout@v4
 
