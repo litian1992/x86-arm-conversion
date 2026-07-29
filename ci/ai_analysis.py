@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from agent_runner import run_agent
 from arm_mcp_client import arm_mcp_session, get_tool_names
 from llm.factory import create_provider, load_ai_config
+from performix_targets import load_performix_targets, performix_configured
 
 OUTPUT_DIR = Path(os.environ.get("CI_OUTPUT_DIR", "ci-output"))
 WORKSPACE_ROOT = os.environ.get("WORKSPACE_ROOT") or os.environ.get("GITHUB_WORKSPACE") or os.getcwd()
@@ -28,10 +29,35 @@ def _ensure_output_dir() -> None:
 
 
 def _build_context() -> dict[str, Any]:
-    return {
+    context: dict[str, Any] = {
         "workspace": WORKSPACE,
+        "workspace_note": "MCP tools see this path as /workspace/",
         "languages": LANGUAGES,
     }
+
+    performix = load_performix_targets()
+    targets = [
+        t
+        for t in (performix.get("targets") or [])
+        if isinstance(t, dict) and str(t.get("language") or "").lower() in {"", "java"}
+    ]
+    context["performix"] = {
+        "configured": performix_configured(),
+        "recipe": performix.get("recipe") or "code_hotspots",
+        "remote_ip_addr": os.environ.get("ARM_MCP_APX_REMOTE_IP", "").strip(),
+        "remote_usr": os.environ.get("ARM_MCP_APX_REMOTE_USER", "").strip(),
+        "targets": targets,
+        "errors": performix.get("errors") or [],
+        "skipped": performix.get("skipped"),
+    }
+    if performix_configured() and targets:
+        context["performix_required"] = True
+        context["performix_instructions"] = (
+            "Call apx_recipe_run once per performix.targets entry using that "
+            "entry's cmd plus remote_ip_addr, remote_usr, and recipe from "
+            "performix. Always include invocation_reason. Do not profile C/C++."
+        )
+    return context
 
 
 def _render_markdown(report: dict[str, Any]) -> str:
@@ -109,7 +135,17 @@ async def run_ai_analysis() -> dict[str, Any]:
     report["tool_invocations"] = result.tool_invocations
     report["conversation"] = result.conversation
     report["iterations"] = result.iterations
-    report["errors"] = result.errors
+    report["errors"] = list(result.errors)
+
+    ctx = report["context"]
+    if ctx.get("performix_required"):
+        used_performix = any(
+            inv.get("tool") == "apx_recipe_run" for inv in result.tool_invocations
+        )
+        if not used_performix:
+            report["errors"].append(
+                "Performix targets were available but apx_recipe_run was never called"
+            )
     return report
 
 

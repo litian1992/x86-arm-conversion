@@ -53,9 +53,17 @@ async def run_agent(
     if context:
         context_block = f"\n\nProject context:\n```json\n{json.dumps(context, indent=2)}\n```"
 
+    user_content = f"Analyze this repository.{context_block}"
+    if context and context.get("performix_required"):
+        user_content += (
+            "\n\nRequired: after migrate_ease_scan, call apx_recipe_run for every "
+            "entry in performix.targets using the provided cmd/remote fields, then "
+            "summarize the hotspot results."
+        )
+
     messages: list[Message] = [
         Message(role="system", content=prompt),
-        Message(role="user", content=f"Analyze this repository.{context_block}"),
+        Message(role="user", content=user_content),
     ]
 
     tool_invocations: list[dict[str, Any]] = []
