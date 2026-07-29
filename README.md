@@ -18,27 +18,31 @@ GitHub Actions workflow that runs [Arm MCP Server](https://developer.arm.com/ser
 - **`knowledge_base_search`** — pulls Arm optimization and migration guidance for the scanned code
 - **`apx_recipe_run`** — Arm Performix `code_hotspots` on **Java only** (sources SCP'd to the APX host and compiled with `javac` there)
 
-## Sample project: `vec_dot`
+## Sample project under `code/`
 
-This repository includes a minimal C++ dot-product demo for local testing and migrate-ease findings:
+This repository includes a mixed-language sample under `code/` for migrate-ease and Performix testing. CI mounts `code/` as `/workspace` inside the Arm MCP container.
 
-| Component | Purpose |
+| Path | Purpose |
 | --- | --- |
-| `CMakeLists.txt` | Cross-arch build (AVX2 on x86_64, NEON on arm64) |
-| `src/x86_simd.cpp` | x86 intrinsics (`immintrin.h`, `_mm256_*`) for **migrate-ease** findings |
-| `src/main.cpp` | Runnable demo + `--self-test` used by CTest |
-| `.arm-mcp-ci.yaml` | Pins languages and Performix Java settings |
+| `code/c/` | C sample with x86 patterns for **migrate-ease** (inline asm, AVX intrinsics, `.s` assembly) |
+| `code/c/Makefile` | Builds the `PATK` binary from `file_lock.c`, `ksw.c`, and `interface.s` |
+| `code/java/CpuBurnerOriginal.java` | Java CPU-burner workload for **Performix** (`apx_recipe_run`) |
+| `.arm-mcp-ci.yaml` | Pins languages (`cpp`, `java`) and Performix `java_dir` |
 
-### Build locally (optional)
+### Notable migration findings in the C sample
+
+- `file_lock.c` — x86 `bswap`, memory barriers, and x86 register names in inline assembly
+- `ksw.c` — AVX256 intrinsics (`_mm256_*`)
+- `interface.s` — architecture-specific assembly
+
+### Build the C sample locally (optional)
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j$(nproc)
-ctest --test-dir build --output-on-failure
-./build/vec_dot
+cd code/c
+make
 ```
 
-Building locally is optional; CI only runs Arm MCP analysis.
+Building locally is optional; CI only runs Arm MCP analysis (and optional Performix / AI jobs).
 
 ## Quick start
 
@@ -46,17 +50,20 @@ Building locally is optional; CI only runs Arm MCP analysis.
 
    ```
    .github/workflows/arm-mcp-ci.yml
+   .github/agents/arm-migration.agent.md
    ci/
-   .arm-mcp-ci.yaml.example
+   .arm-mcp-ci.yaml
    ```
 
-2. Optionally create `.arm-mcp-ci.yaml` from the example to customize languages and Performix settings.
+2. Adjust `.arm-mcp-ci.yaml` for your scan root, languages, and Performix settings.
 
 3. Open a pull request — the workflow runs automatically and posts a comment with migrate-ease findings and performance suggestions.
 
+4. (Optional) For AI analysis, commit `.arm-mcp-ai.yaml`, add an LLM API secret, and label the PR with `arm-mcp-ai`.
+
 ## Configuration
 
-Create `.arm-mcp-ci.yaml` in the repository root:
+Create or edit `.arm-mcp-ci.yaml` in the repository root:
 
 ```yaml
 scan_root: code
@@ -83,12 +90,15 @@ python ci/detect_project.py --json
 
 ### Run Arm MCP analysis (requires Docker)
 
+Uses the local `armlimited/arm-mcp:latest` image when present; otherwise pull it first.
+
 **Scripted mode** (deterministic, no API key):
 
 ```bash
-docker pull armlimited/arm-mcp:latest
-export LANGUAGES='["cpp","java"]'
+docker pull armlimited/arm-mcp:latest   # skip if already loaded locally
+export WORKSPACE_ROOT="$(pwd)"
 export WORKSPACE="$(pwd)/code"
+export LANGUAGES='["cpp","java"]'
 python ci/run_analysis.py
 cat ci-output/report.md
 ```
@@ -96,28 +106,29 @@ cat ci-output/report.md
 **AI mode** (LLM selects and chains MCP tools dynamically):
 
 ```bash
-cp .arm-mcp-ai.yaml.example .arm-mcp-ai.yaml
-# Edit provider, model, and api_key_env
-
+# Edit .arm-mcp-ai.yaml (provider, model, base_url, api_key_env)
 export OPENAI_API_KEY=sk-...
-export LANGUAGES='["cpp","java"]'
+export WORKSPACE_ROOT="$(pwd)"
 export WORKSPACE="$(pwd)/code"
+export LANGUAGES='["cpp","java"]'
 python ci/ai_analysis.py
 cat ci-output/report.md
 ```
 
-AI mode works with any OpenAI-compatible API (OpenAI, Azure, Ollama, custom endpoints) or Anthropic Claude. Configure via `.arm-mcp-ai.yaml` or environment variables:
+AI mode works with any OpenAI-compatible API (OpenAI, Azure, Ollama, BigModel, custom endpoints) or Anthropic Claude. Prefer `.arm-mcp-ai.yaml`; environment variables are optional overrides:
 
 | Variable | Purpose |
 | --- | --- |
 | `ARM_MCP_AI_PROVIDER` | `openai`, `openai_compat`, `ollama`, `custom`, `anthropic`, `claude` |
-| `ARM_MCP_AI_MODEL` | Model name (e.g. `gpt-4o`, `claude-sonnet-4-20250514`) |
+| `ARM_MCP_AI_MODEL` | Model name (e.g. `glm-4.7-flash`, `gpt-4o`) |
 | `ARM_MCP_AI_BASE_URL` | Override API base URL for custom/OpenAI-compatible endpoints |
 | `ARM_MCP_AI_API_KEY_ENV` | Env var name holding the API key (default: provider-specific) |
 | `ARM_MCP_AI_MAX_ITERATIONS` | Max tool-use loop iterations (default: 20) |
 | `ARM_MCP_AI_PROMPT_PATH` | Override agent prompt file (default: `.github/agents/arm-migration.agent.md`) |
 
 The agent prompt lives in [`.github/agents/arm-migration.agent.md`](.github/agents/arm-migration.agent.md). Edit that file to tune migration steps, tool usage rules, and output format — both local AI mode and the label-triggered CI job read from it.
+
+When Performix Java targets are prepared, AI mode includes them in project context and expects `apx_recipe_run` for each target.
 
 As Arm MCP adds new tools, AI mode discovers them automatically via `list_tools` — no script changes required.
 
@@ -126,8 +137,8 @@ As Arm MCP adds new tools, AI mode discovers them automatically via `list_tools`
 The workflow runs scripted analysis on every PR. **AI analysis is optional** — add the `arm-mcp-ai` label to a pull request to enable it.
 
 1. Add a repository secret: `OPENAI_API_KEY`, `ARM_MCP_AI_API_KEY`, or `ANTHROPIC_API_KEY`
-2. (Optional) Set repository variables `ARM_MCP_AI_PROVIDER` and `ARM_MCP_AI_MODEL` to override defaults (`openai` / `gpt-4o`)
-3. (Optional) Commit `.arm-mcp-ai.yaml` for provider-specific settings (custom base URL, model, etc.)
+2. Commit `.arm-mcp-ai.yaml` with `provider`, `model`, and `base_url` (recommended)
+3. (Optional) Set repository variables `ARM_MCP_AI_PROVIDER`, `ARM_MCP_AI_MODEL`, or `ARM_MCP_AI_BASE_URL` to override the YAML
 4. Tune the agent prompt in `.github/agents/arm-migration.agent.md`
 5. Add the **`arm-mcp-ai`** label to the PR
 
@@ -135,8 +146,8 @@ The workflow posts two separate PR comments: the standard scripted report and an
 
 ## Requirements
 
-- **Docker** on the self-hosted runner (`lecomputing_li_tian`)
-- **`armlimited/arm-mcp`** image pulled at runtime (no API keys required for scripted mode)
+- **Docker** on the self-hosted runner (`li_tian_desktop`)
+- **`armlimited/arm-mcp:latest`** available locally on the runner (pulled automatically if missing)
 - **LLM API key** required only for AI mode (`ci/ai_analysis.py`)
 
 ## Optional: Arm Performix profiling (Java)
@@ -145,9 +156,10 @@ Performix runs **only against Java** under `code/java/`:
 
 1. `ci/prepare_java_performix.py` SCPs sources to the APX host
 2. Compiles them there with pre-installed `javac` (renaming files to match public class names when needed)
-3. `ci/run_analysis.py` calls `apx_recipe_run` with recipe `code_hotspots` and the remote `java -cp …` command
+3. Scripted analysis (`ci/run_analysis.py`) calls `apx_recipe_run` with recipe `code_hotspots` and the remote `java -cp …` command
+4. AI analysis loads the same targets from `performix-targets.json` and asks the LLM to call `apx_recipe_run`
 
-C sources under `code/c/` are covered by migrate-ease / knowledge-base / MCA only — not Performix.
+C sources under `code/c/` are covered by migrate-ease and knowledge-base only — not Performix.
 
 Set these **repository variables** (paths are on the self-hosted runner; IP/user are for the APX machine):
 
@@ -189,6 +201,9 @@ The workflow requests `pull-requests: write` so it can create/update PR comments
 | migrate-ease scan times out | Increase `timeout-minutes` on the analysis job; large repos may need 30+ minutes |
 | Empty `/workspace` in scan results | Ensure the checkout step runs before analysis and Docker volume mount path is correct |
 | PyYAML error in detect job | Ensure `pip install -r ci/requirements.txt` runs before `detect_project.py` |
+| Agent prompt / AI YAML not found | Set `WORKSPACE_ROOT` to the repo root (not `code/`); config and prompts live at the root |
+| AI skips Performix | Confirm `prepare_java_performix.py` wrote targets and APX vars are set; AI context should show `performix_required: true` |
+| LLM `429 Too Many Requests` | Free-tier rate limit; retries/backoff are built in — wait, lower `max_iterations`, or use a paid model |
 
 ## References
 
