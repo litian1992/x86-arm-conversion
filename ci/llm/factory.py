@@ -95,6 +95,8 @@ def create_provider(llm_config: dict[str, Any]) -> LLMProvider:
     temperature = float(llm_config.get("temperature", 0.2))
     base_url = llm_config.get("base_url")
     headers = llm_config.get("headers") or {}
+    max_retries = int(llm_config.get("max_retries", 5))
+    retry_backoff = float(llm_config.get("retry_backoff", 5.0))
 
     if provider in ("anthropic", "claude"):
         return AnthropicProvider(
@@ -111,6 +113,8 @@ def create_provider(llm_config: dict[str, Any]) -> LLMProvider:
             base_url=base_url or "https://api.openai.com/v1",
             headers=headers,
             temperature=temperature,
+            max_retries=max_retries,
+            retry_backoff=retry_backoff,
         )
 
     raise ValueError(
